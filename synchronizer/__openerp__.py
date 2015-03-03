@@ -26,7 +26,7 @@
     'version': '1.0',
     'category': 'Generic Modules',
     'description': """
-    Module that extend the odoo orm to add extra feature for synchronisation.
+    Module that extends Odoo's ORM to add extra features for synchronisation.
     """,
     'author': 'Akretion',
     'website': 'http://akretion.com',
