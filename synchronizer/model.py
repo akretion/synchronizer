@@ -22,6 +22,9 @@
 
 
 from openerp.osv import orm
+import logging
+_logger = logging.getLogger(__name__)
+
 
 def _sync_get_ids(self, cr, uid, from_timekey, domain=None,
                   limit=None, to_timekey=None, context=None):
@@ -62,10 +65,11 @@ def _sync_get_ids(self, cr, uid, from_timekey, domain=None,
         ids.append(last['id'])
         return ids, last["timekey"]
     else:
-        return [], None
+        return [], from_timekey
 
 def _prepare_sync_data(self, cr, uid, ids, key, context=None):
     if not hasattr(self, '_prepare_sync_data_%s' % key):
+        _logger.error('The function _prepare_sync_data_%s do not exist', key)
         raise NotImplemented
     res = {}
     for record in self.browse(cr, uid, ids, context=context):
@@ -79,13 +83,20 @@ def get_sync_data(self, cr, uid, key, timekey, domain, limit, context=None):
         domain=domain,
         limit=limit,
         context=context)
-    all_ids, __ = self._sync_get_ids(
-        cr, uid, timekey,
-        to_timekey=new_timekey,
-        context=context)
-    remove_ids = list(set(all_ids).difference(set(ids)))
+    if timekey:
+        all_ids, __ = self._sync_get_ids(
+            cr, uid, timekey,
+            to_timekey=new_timekey,
+            context=context)
+        remove_ids = list(set(all_ids).difference(set(ids)))
+    else:
+        remove_ids = []
     data = self._prepare_sync_data(cr, uid, ids, key, context=context)
-    return data, new_timekey, remove_ids
+    return {
+        'data':data,
+        'timekey': new_timekey,
+        'remove_ids': remove_ids,
+    }
 
 orm.Model._sync_get_ids = _sync_get_ids
 orm.Model._prepare_sync_data = _prepare_sync_data
