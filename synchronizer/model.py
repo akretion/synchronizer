@@ -77,6 +77,25 @@ def _prepare_sync_data(self, cr, uid, ids, key, context=None):
             cr, uid, record, context=context)
     return res
 
+def jsonify(record, depth=1):
+    res = {}
+    for field_name, field in record._columns.items():
+        if field._type in ['char', 'boolean', 'datetime', 'float',
+                           'integer', 'selection', 'text']:
+            res[field_name] = record[field_name]
+        elif depth > 0:
+            if field._type == 'many2one':
+                res[field_name] = jsonify(record[field_name], depth-1)
+            elif field._type == 'one2many':
+                data = []
+                for item in record[field_name]:
+                    data.append(jsonify(item))
+                res[field_name] = data
+    return res
+
+def _prepare_sync_data_auto(self, cr, uid, record, context=None):
+    return jsonify(record)
+
 def get_sync_data(self, cr, uid, key, timekey, domain, limit, context=None):
     ids, new_timekey = self._sync_get_ids(
         cr, uid, timekey,
@@ -101,3 +120,4 @@ def get_sync_data(self, cr, uid, key, timekey, domain, limit, context=None):
 orm.Model._sync_get_ids = _sync_get_ids
 orm.Model._prepare_sync_data = _prepare_sync_data
 orm.Model.get_sync_data = get_sync_data
+orm.Model._prepare_sync_data_auto = _prepare_sync_data_auto
