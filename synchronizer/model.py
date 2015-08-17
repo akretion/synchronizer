@@ -107,7 +107,7 @@ def get_sync_data(self, cr, uid, key, timekey, base_domain,
                   filter_domain, limit, context=None):
     ids, new_timekey = self._sync_get_ids(
         cr, uid, timekey,
-        domain=filter_domain,
+        domain=base_domain + filter_domain,
         limit=limit,
         context=context)
     if timekey:
@@ -121,7 +121,7 @@ def get_sync_data(self, cr, uid, key, timekey, base_domain,
         remove_ids = []
     data = self._prepare_sync_data(cr, uid, ids, key, context=context)
     return {
-        'data':data,
+        'data': data,
         'timekey': new_timekey,
         'remove_ids': remove_ids,
     }
