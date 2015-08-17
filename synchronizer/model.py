@@ -43,6 +43,13 @@ def _sync_get_ids(self, cr, uid, from_timekey, domain=None,
             " (GREATEST(write_date, create_date) || '|' || id) > %s "
         where_clause_params.append(from_timekey)
 
+    if to_timekey:
+        if where_clause:
+            where_clause += ' AND'
+        where_clause += \
+            " (GREATEST(write_date, create_date) || '|' || id) < %s "
+        where_clause_params.append(to_timekey)
+
     where_str = where_clause and (" WHERE %s" % where_clause) or ''
 
     query_str = """
@@ -96,15 +103,17 @@ def jsonify(record, depth=1):
 def _prepare_sync_data_auto(self, cr, uid, record, context=None):
     return jsonify(record)
 
-def get_sync_data(self, cr, uid, key, timekey, domain, limit, context=None):
+def get_sync_data(self, cr, uid, key, timekey, base_domain,
+                  filter_domain, limit, context=None):
     ids, new_timekey = self._sync_get_ids(
         cr, uid, timekey,
-        domain=domain,
+        domain=filter_domain,
         limit=limit,
         context=context)
     if timekey:
         all_ids, __ = self._sync_get_ids(
             cr, uid, timekey,
+            domain=base_domain,
             to_timekey=new_timekey,
             context=context)
         remove_ids = list(set(all_ids).difference(set(ids)))
