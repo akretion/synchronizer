@@ -111,12 +111,16 @@ def get_sync_data(self, cr, uid, key, timekey, base_domain,
         limit=limit,
         context=context)
     if timekey:
-        all_ids, __ = self._sync_get_ids(
+        if timekey == new_timekey and len(ids) < limit:
+            new_timekey = None
+        all_ids, delete_timekey = self._sync_get_ids(
             cr, uid, timekey,
             domain=base_domain,
             to_timekey=new_timekey,
             context=context)
         remove_ids = list(set(all_ids).difference(set(ids)))
+        if not new_timekey and delete_timekey:
+            new_timekey = delete_timekey
     else:
         remove_ids = []
     data = self._prepare_sync_data(cr, uid, ids, key, context=context)
