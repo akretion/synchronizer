@@ -21,7 +21,12 @@
 ###############################################################################
 
 
-from openerp.osv import orm
+try:
+    from openerp import models
+except ImportError:
+    models = None
+    from openerp.osv import orm
+
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -130,7 +135,12 @@ def get_sync_data(self, cr, uid, key, timekey, base_domain,
         'remove_ids': remove_ids,
     }
 
-orm.Model._sync_get_ids = _sync_get_ids
-orm.Model._prepare_sync_data = _prepare_sync_data
-orm.Model.get_sync_data = get_sync_data
-orm.Model._prepare_sync_data_auto = _prepare_sync_data_auto
+if models:
+    Model = models.BaseModel
+else:
+    Model = orm.Model
+
+Model._sync_get_ids = _sync_get_ids
+Model._prepare_sync_data = _prepare_sync_data
+Model.get_sync_data = get_sync_data
+Model._prepare_sync_data_auto = _prepare_sync_data_auto
