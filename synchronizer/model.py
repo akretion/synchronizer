@@ -20,18 +20,48 @@
 #
 ###############################################################################
 
-
-try:
-    from openerp import models
-except ImportError:
-    models = None
-    from openerp.osv import orm
-
+from openerp.osv import fields, orm
+from openerp.tools.translate import _
+from datetime import datetime
 import logging
 _logger = logging.getLogger(__name__)
 
-class SyncronizedMixin(orm.AbstractModel):
-    _name = 'syncronized.mixin'
+
+class SynchronizedMixin(orm.AbstractModel):
+    _name = 'synchronized.mixin'
+
+    _columns = {
+        'timekey': fields.float(select=True)
+    }
+
+    _sql_contraint = {
+        ('timekey_uniq', 'unique(timekey)', 'Timekey must be uniq')
+    }
+
+    def _init_timekey(self, cr, uid, context=None):
+        ids = self.search(cr, uid, [], context=context, order='write_date asc')
+        self._update_timekey(cr, uid, ids, context=context)
+
+    def _update_timekey(self, cr, uid, ids, context=None):
+        for record_id in ids:
+            timekey = int(datetime.now().strftime('%s%f'))
+            cr.execute(
+                "UPDATE "
+                + self._table
+                +" SET timekey=%s WHERE id = %s",
+                (timekey, record_id))
+
+    def write(self, cr, uid, ids, vals, context=None):
+        res = super(SynchronizedMixin, self).write(
+            cr, uid, ids, vals, context=context)
+        self._update_timekey(cr, uid, ids, context=context)
+        return res
+
+    def create(self, cr, uid, vals, context=None):
+        record_id = super(SyncrhonizedMixin, self).write(
+            cr, uid, ids, vals, context=context)
+        self._update_timekey(cr, uid, [record_id], context=context)
+        return record_id
 
     def _sync_get_ids(self, cr, uid, from_timekey, domain=None,
                       limit=None, to_timekey=None, context=None):
@@ -47,14 +77,14 @@ class SyncronizedMixin(orm.AbstractModel):
             if where_clause:
                 where_clause += ' AND'
             where_clause += \
-                " (GREATEST(write_date, create_date) || '|' || id) > %s "
+                " timekey > %s "
             where_clause_params.append(from_timekey)
 
         if to_timekey:
             if where_clause:
                 where_clause += ' AND'
             where_clause += \
-                " (GREATEST(write_date, create_date) || '|' || id) < %s "
+                " timekey < %s "
             where_clause_params.append(to_timekey)
 
         where_str = where_clause and (" WHERE %s" % where_clause) or ''
@@ -62,10 +92,7 @@ class SyncronizedMixin(orm.AbstractModel):
         query_str = """
             SELECT
                 id,
-                GREATEST("%(table)s".write_date, "%(table)s".create_date)
-                    as update_time,
-                GREATEST("%(table)s".write_date, "%(table)s".create_date)
-                    || '|' || id as timekey
+                timekey
             FROM """ % {'table': self._table} + from_clause + where_str + """
             ORDER BY timekey"""
         if limit:
