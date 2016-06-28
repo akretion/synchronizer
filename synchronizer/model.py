@@ -58,8 +58,8 @@ class SynchronizedMixin(orm.AbstractModel):
         return res
 
     def create(self, cr, uid, vals, context=None):
-        record_id = super(SyncrhonizedMixin, self).write(
-            cr, uid, ids, vals, context=context)
+        record_id = super(SynchronizedMixin, self).create(
+            cr, uid, vals, context=context)
         self._update_timekey(cr, uid, [record_id], context=context)
         return record_id
 
