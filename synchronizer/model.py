@@ -31,7 +31,7 @@ class SynchronizedMixin(orm.AbstractModel):
     _name = 'synchronized.mixin'
 
     _columns = {
-        'timekey': fields.float(select=True)
+        'timekey': fields.char(select=True)
     }
 
     _sql_contraint = {
@@ -44,7 +44,7 @@ class SynchronizedMixin(orm.AbstractModel):
 
     def _update_timekey(self, cr, uid, ids, context=None):
         for record_id in ids:
-            timekey = int(datetime.now().strftime('%s%f'))
+            timekey = datetime.now().strftime('%s%f')
             cr.execute(
                 "UPDATE "
                 + self._table
