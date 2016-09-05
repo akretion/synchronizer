@@ -20,59 +20,76 @@
 #
 ###############################################################################
 
-from openerp.osv import fields, orm
-from openerp.tools.translate import _
+from openerp import models, api, fields
 from datetime import datetime
 import logging
 _logger = logging.getLogger(__name__)
 
 
-class SynchronizedMixin(orm.AbstractModel):
+def jsonify(record, depth=1):
+    res = {}
+    for field_name, field in record._columns.items():
+        if field._type in ['char', 'boolean', 'datetime', 'float',
+                           'integer', 'selection', 'text']:
+            res[field_name] = record[field_name]
+        elif depth > 0:
+            if field._type == 'many2one':
+                res[field_name] = jsonify(record[field_name], depth-1)
+            elif field._type == 'one2many':
+                data = []
+                for item in record[field_name]:
+                    data.append(jsonify(item))
+                res[field_name] = data
+    return res
+
+
+class SynchronizedMixin(models.AbstractModel):
     _name = 'synchronized.mixin'
 
-    _columns = {
-        'timekey': fields.char(select=True)
-    }
+    timekey = fields.Char(index=True)
 
     _sql_contraint = {
         ('timekey_uniq', 'unique(timekey)', 'Timekey must be uniq')
     }
 
-    def _init_timekey(self, cr, uid, context=None):
-        ids = self.search(cr, uid, [], context=context, order='write_date asc')
-        self._update_timekey(cr, uid, ids, context=context)
+    @api.model
+    def _init_timekey(self):
+        records = self.search([], order='write_date asc')
+        records._update_timekey()
 
-    def _update_timekey(self, cr, uid, ids, context=None):
-        for record_id in ids:
+    @api.multi
+    def _update_timekey(self):
+        for record in self:
             timekey = datetime.now().strftime('%s%f')
-            cr.execute(
-                "UPDATE "
-                + self._table
-                +" SET timekey=%s WHERE id = %s",
-                (timekey, record_id))
+            self.env.cr.execute(
+                "UPDATE " +
+                self._table +
+                " SET timekey = %s WHERE id = %s",
+                (timekey, record.id))
 
-    def write(self, cr, uid, ids, vals, context=None):
-        res = super(SynchronizedMixin, self).write(
-            cr, uid, ids, vals, context=context)
-        self._update_timekey(cr, uid, ids, context=context)
+    @api.multi
+    def write(self, vals):
+        res = super(SynchronizedMixin, self).write(vals)
+        self._update_timekey()
         return res
 
-    def create(self, cr, uid, vals, context=None):
-        record_id = super(SynchronizedMixin, self).create(
-            cr, uid, vals, context=context)
-        self._update_timekey(cr, uid, [record_id], context=context)
-        return record_id
+    @api.model
+    def create(self, vals):
+        record = super(SynchronizedMixin, self).create(vals)
+        record._update_timekey()
+        return record
 
-    def _sync_get_ids(self, cr, uid, from_timekey, domain=None,
-                      limit=None, to_timekey=None, context=None):
+    @api.model
+    def _sync_get_ids(self, from_timekey, domain=None, limit=None,
+                      to_timekey=None):
         if domain is None:
             domain = []
-        self.check_access_rights(cr, uid or user, 'read')
-        query = self._where_calc(cr, uid, domain, context=context)
-        self._apply_ir_rules(cr, uid, query, 'read', context=context)
+        self.check_access_rights('read')
+        query = self._where_calc(domain)
+        self._apply_ir_rules(query, 'read')
         from_clause, where_clause, where_clause_params = query.get_sql()
 
-        #TODO add the support of inherits record
+        # TODO add the support of inherits record
         if from_timekey:
             if where_clause:
                 where_clause += ' AND'
@@ -98,8 +115,8 @@ class SynchronizedMixin(orm.AbstractModel):
         if limit:
             query_str += '\nLIMIT %d' % limit
 
-        cr.execute(query_str, where_clause_params)
-        results = cr.dictfetchall()
+        self.env.cr.execute(query_str, where_clause_params)
+        results = self.env.cr.dictfetchall()
         if results:
             last = results.pop()
             ids = [r['id'] for r in results]
@@ -108,56 +125,38 @@ class SynchronizedMixin(orm.AbstractModel):
         else:
             return [], from_timekey
 
-    def _prepare_sync_data(self, cr, uid, ids, key, context=None):
+    @api.multi
+    def _prepare_sync_data(self, key):
         if not hasattr(self, '_prepare_sync_data_%s' % key):
-            _logger.error('The function _prepare_sync_data_%s do not exist', key)
+            _logger.error('The function _prepare_sync_data_%s do not exist',
+                          key)
             raise NotImplemented
         res = {}
-        for record in self.browse(cr, uid, ids, context=context):
-            res[record.id] = getattr(self, '_prepare_sync_data_%s' % key)(
-                cr, uid, record, context=context)
+        for record in self:
+            res[record.id] = getattr(self, '_prepare_sync_data_%s' % key)()
         return res
 
-    def jsonify(record, depth=1):
-        res = {}
-        for field_name, field in record._columns.items():
-            if field._type in ['char', 'boolean', 'datetime', 'float',
-                               'integer', 'selection', 'text']:
-                res[field_name] = record[field_name]
-            elif depth > 0:
-                if field._type == 'many2one':
-                    res[field_name] = jsonify(record[field_name], depth-1)
-                elif field._type == 'one2many':
-                    data = []
-                    for item in record[field_name]:
-                        data.append(jsonify(item))
-                    res[field_name] = data
-        return res
+    @api.multi
+    def _prepare_sync_data_auto(self):
+        self.ensure_one()
+        return jsonify(self)
 
-    def _prepare_sync_data_auto(self, cr, uid, record, context=None):
-        return jsonify(record)
-
-    def get_sync_data(self, cr, uid, key, timekey, base_domain,
-                      filter_domain, limit, context=None):
+    @api.model
+    def get_sync_data(self, key, timekey, base_domain,
+                      filter_domain, limit):
         ids, new_timekey = self._sync_get_ids(
-            cr, uid, timekey,
-            domain=base_domain + filter_domain,
-            limit=limit,
-            context=context)
+            timekey, domain=base_domain + filter_domain, limit=limit)
         if timekey:
             if timekey == new_timekey and len(ids) < limit:
                 new_timekey = None
             all_ids, delete_timekey = self._sync_get_ids(
-                cr, uid, timekey,
-                domain=base_domain,
-                to_timekey=new_timekey,
-                context=context)
+                timekey, domain=base_domain, to_timekey=new_timekey)
             remove_ids = list(set(all_ids).difference(set(ids)))
             if not new_timekey and delete_timekey:
                 new_timekey = delete_timekey
         else:
             remove_ids = []
-        data = self._prepare_sync_data(cr, uid, ids, key, context=context)
+        data = self.browse(ids)._prepare_sync_data(key)
         return {
             'data': data,
             'timekey': new_timekey,

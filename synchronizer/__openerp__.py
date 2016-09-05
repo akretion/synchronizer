@@ -23,7 +23,7 @@
 
 {
     'name': 'Synchronizer',
-    'version': '1.0',
+    'version': '9.0.1.0.0',
     'category': 'Generic Modules',
     'description': """
     Module that extends Odoo's ORM to add extra features for synchronisation.
