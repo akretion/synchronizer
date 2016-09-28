@@ -133,7 +133,7 @@ class SynchronizedMixin(models.AbstractModel):
             raise NotImplemented
         res = {}
         for record in self:
-            res[record.id] = getattr(self, '_prepare_sync_data_%s' % key)()
+            res[record.id] = getattr(record, '_prepare_sync_data_%s' % key)()
         return res
 
     @api.multi
