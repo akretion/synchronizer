@@ -112,11 +112,16 @@ class SynchronizedMixin(models.AbstractModel):
                 timekey
             FROM """ % {'table': self._table} + from_clause + where_str + """
             ORDER BY timekey"""
-        if limit:
-            query_str += '\nLIMIT %d' % limit
 
         self.env.cr.execute(query_str, where_clause_params)
         results = self.env.cr.dictfetchall()
+        # Avoid using limit in query as in some case it may confuse postgresql query
+        # planner. Since we order by timekey, it would try to use the timekey index
+        # even if it is not even used in where clause. Then the query may take a
+        # really long time in case there are a lot of rows.
+        # Avoiding the limit, it will always use the where clause relative indexes
+        if limit:
+            results = results[:limit]
         if results:
             last = results.pop()
             ids = [r['id'] for r in results]
