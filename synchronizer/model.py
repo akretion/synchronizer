@@ -148,17 +148,16 @@ class SynchronizedMixin(models.AbstractModel):
 
     @api.model
     def get_sync_data(self, key, timekey, base_domain,
-                      filter_domain, limit):
+                      filter_domain, limit, current_ids):
         ids, new_timekey = self._sync_get_ids(
             timekey, domain=base_domain + filter_domain, limit=limit)
-        if timekey:
-            if timekey == new_timekey and len(ids) < limit:
-                new_timekey = None
-            all_ids, delete_timekey = self._sync_get_ids(
-                timekey, domain=base_domain, to_timekey=new_timekey)
-            remove_ids = list(set(all_ids).difference(set(ids)))
-            if not new_timekey and delete_timekey:
-                new_timekey = delete_timekey
+        if timekey and current_ids:
+            # to get ids to remove, get valid ids in the current external apps list
+            # (current_list) and then remove the one not valid anymore
+            filter_domain = filter_domain + [("id", "in", current_ids)]
+            current_valid_ids, _dummy_timekey = self._sync_get_ids(
+                None, domain=base_domain + filter_domain)
+            remove_ids = list(set(current_ids).difference(current_valid_ids))
         else:
             remove_ids = []
         data = self.browse(ids)._prepare_sync_data(key)
