@@ -48,6 +48,7 @@ class SynchronizedMixin(models.AbstractModel):
                 "UPDATE " + self._table + " SET timekey = %s WHERE id = %s",
                 (timekey, record.id),
             )
+            self.invalidate_cache(["timekey"])
 
     def write(self, vals):
         res = super().write(vals)
@@ -96,6 +97,7 @@ class SynchronizedMixin(models.AbstractModel):
             ORDER BY timekey"""
         )
 
+        self.flush()
         self.env.cr.execute(query_str, where_clause_params)
         results = self.env.cr.dictfetchall()
         # Avoid using limit in query as in some case it may confuse postgresql query
