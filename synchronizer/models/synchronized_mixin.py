@@ -32,6 +32,7 @@ def jsonify(record, depth=1):
 
 class SynchronizedMixin(models.AbstractModel):
     _name = "synchronized.mixin"
+    _description = "Mixin to synchronize some records between Odoo and an external app"
 
     timekey = fields.Char(index=True)
 
