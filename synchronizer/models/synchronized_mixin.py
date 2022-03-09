@@ -129,6 +129,7 @@ class SynchronizedMixin(models.AbstractModel):
         self.ensure_one()
         return jsonify(self)
 
+    @api.model
     def get_sync_data(self, key, timekey, base_domain, filter_domain, limit, current_ids):
         ids, new_timekey = self._sync_get_ids(
             timekey, domain=base_domain + filter_domain, limit=limit
