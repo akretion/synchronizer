@@ -2,12 +2,13 @@
 
 {
     "name": "Synchronizer",
-    "version": "14.0.1.0.0",
+    "version": "16.0.1.0.0",
     "category": "Generic Modules",
     "description": """
     Module that extends Odoo's ORM to add extra features for synchronisations
     """,
     "author": "Akretion",
+    "license": "AGPL-3",
     "website": "http://akretion.com",
     "depends": ["base"],
     "installable": True,
