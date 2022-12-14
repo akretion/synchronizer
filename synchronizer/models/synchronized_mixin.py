@@ -45,15 +45,18 @@ class SynchronizedMixin(models.AbstractModel):
     def _update_timekey(self):
         for record in self:
             timekey = datetime.now().strftime("%s%f")
-            self.env.cr.execute(
-                "UPDATE " + self._table + " SET timekey = %s WHERE id = %s",
-                (timekey, record.id),
-            )
-            self.invalidate_cache(["timekey"])
+            # since odoo framework is more performant than before, let's try with orm
+            record.write({"timekey": timekey})
+            #self.env.cr.execute(
+            #    "UPDATE " + self._table + " SET timekey = %s WHERE id = %s",
+            #    (timekey, record.id),
+            #)
+            #record.invalidate_cache(["timekey"])
 
     def write(self, vals):
         res = super().write(vals)
-        self._update_timekey()
+        if "timekey" not in vals:
+            self._update_timekey()
         return res
 
     @api.model_create_multi
@@ -98,7 +101,9 @@ class SynchronizedMixin(models.AbstractModel):
             ORDER BY timekey"""
         )
 
-        self.flush()
+        # seems optional to me as this call from app does not  change anything in
+        # database, there should not be anything to flush...
+        self.flush_model()
         self.env.cr.execute(query_str, where_clause_params)
         results = self.env.cr.dictfetchall()
         # Avoid using limit in query as in some case it may confuse postgresql query
